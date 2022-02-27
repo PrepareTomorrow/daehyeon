@@ -1,15 +1,17 @@
-from readline import redisplay
 import pytest
 
+from model.conn import get_db
 from model.conn import create_engine_session, Base
-from main import app, get_db
+
+from view import create_endpoints
+
+from main import create_app, Services, Schemas
 
 from fastapi.testclient import TestClient
-import requests
 import bcrypt
 
 
-engine, session = create_engine_session(test=True)
+engine, _ = create_engine_session(test=True)
 
 
 def setup_function():
@@ -25,22 +27,19 @@ def setup_function():
     
     
 def teardown_function():
+    engine.execute('SET FOREIGN_KEY_CHECKS=0')
     engine.execute('TRUNCATE TABLE users;')
     engine.execute('TRUNCATE TABLE tweets;')
     engine.execute('TRUNCATE TABLE users_follow_list;')
-    
-
-def override_get_db():
-    db = session()
-    try:
-        yield db
-    finally:
-        db.close()
+    engine.execute('SET FOREIGN_KEY_CHECKS=1')
 
 
 @pytest.fixture
 def api():
-    app.dependency_overrides[get_db] = override_get_db
+    services = Services(engine)
+    schemas = Schemas()
+    app = create_app(engine)
+    create_endpoints(app, services, schemas)
     test_app = TestClient(app)
     return test_app
 
@@ -64,7 +63,7 @@ def test_sign_up(api):
         'name': 'test_client_none',
         'email': 'test_client1@test.com',
         'password': 'testpassword',
-        'profile': 'This is Test!'
+        'profile': 'It should not be inserted'
     }
     response = api.put('/sign-up', json=integrity_error_case)
     assert response.status_code == 400, response.text
@@ -92,6 +91,20 @@ def test_login(api):
     response = api.post('/login', json=wrong_case)
     assert response.status_code == 400, response.text
 
+def test_timeline(api):
+    data = {
+        'email': 'test_client1@test.com',
+        'password': 'testpassword'
+    }
+    response = api.post('/login', json=data)
+    
+    token = response.json()['access_token']
+    response = api.get('/timeline', headers={'Authorization': token})
+    assert response.status_code == 200, response.text
+    
+    timeline = response.json()['timeline']
+    assert len(timeline) != 0, timeline
+    assert timeline[0]['tweet'] == 'HELLO WORLD!', timeline[0]['tweet']
 
 def test_follow(api):
     data = {
@@ -107,6 +120,21 @@ def test_follow(api):
                        headers={'Authorization': token},
                        json=data)
     assert response.status_code == 200, response.text
+    
+def test_tweet(api):
+    data = {
+        'email': 'test_client1@test.com',
+        'password': 'testpassword'
+    }
+    response = api.post('/login', json=data)
+    
+    token = response.json()['access_token']
+    
+    data = {'tweet': 'Hi Hello bangga!!'}
+    response = api.put('/tweet',
+                       headers={'Authorization': token},
+                       json=data)
+    assert response.status_code == 200, response.text
 
 
 def test_unfollow(api):
@@ -118,7 +146,7 @@ def test_unfollow(api):
     
     token = response.json()['access_token']
     
-    data = {'user_id_to_follow': 2}
+    data = {'user_id_to_unfollow': 2}
     response = api.delete('/unfollow',
                           headers={'Authorization': token},
                           json=data)
@@ -130,24 +158,10 @@ def test_unfollow(api):
                        json=data)
     assert response.status_code == 200, response.text
     
-    data = {'user_id_to_follow': 2}
+    data = {'user_id_to_unfollow': 2}
     response = api.delete('/unfollow',
                           headers={'Authorization': token},
                           json=data)
     assert response.status_code == 200, response.text
 
 
-def test_timeline(api):
-    data = {
-        'email': 'test_client1@test.com',
-        'password': 'testpassword'
-    }
-    response = api.post('/login', json=data)
-    
-    token = response.json()['access_token']
-    response = api.get('/timeline', headers={'Authorization': token})
-    assert response.status_code == 200, response.text
-    
-    timeline = response.json()['timeline']
-    assert len(timeline) != 0, timeline
-    assert timeline[0]['tweet'] == 'HELLO WORLD!', timeline[0]['tweet']
