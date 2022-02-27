@@ -19,11 +19,11 @@ class UserDao:
         hashed_password = bcrypt.hashpw(user.password.encode('utf-8'),
                                         bcrypt.gensalt())
         
-        query = Users(name=user.name,
-                      email=user.email,
-                      profile=user.profile,
-                      hashed_password=hashed_password)
         try:
+            query = Users(name=user.name,
+                          email=user.email,
+                          profile=user.profile,
+                          hashed_password=hashed_password)
             db.add(query)
             db.commit()
             return True
@@ -66,10 +66,6 @@ class UserDao:
         try:
             query = self.follow_table(user_id=user_id,
                                       follow_user_id=user_id_to_follow)
-        finally:
-            db.close()
-        
-        try:
             db.add(query)
             db.commit()
             return True
@@ -82,18 +78,15 @@ class UserDao:
                       user_id: int,
                       user_id_to_unfollow: int):
         db = sessionmaker(bind=self.engine)()
-        
+
         try:
             query = db.query(self.follow_table)\
                 .filter(and_(self.follow_table.user_id == user_id,
                             self.follow_table.follow_user_id == user_id_to_unfollow)).first()
-        finally:
-            db.close()
-            
-        if query is None:
-            return False
-        
-        try:
+                
+            if query is None:
+                return False
+                
             db.delete(query)
             db.commit()
             return True

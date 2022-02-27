@@ -15,9 +15,9 @@ class TweetDao:
                      user_id: int,
                      tweet_content: str):
         db = sessionmaker(bind=self.engine)()
-        query = self.tweet_table(user_id=user_id,
-                                 tweet=tweet_content)
         try:
+            query = self.tweet_table(user_id=user_id,
+                                    tweet=tweet_content)
             db.add(query)
             db.commit()
             return True
