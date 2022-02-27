@@ -1,1 +1,17 @@
-from sqlalchemy import or_from sqlalchemy.orm import Sessionfrom model import tablesdef insert_tweet(tweet_content: str,                 user_id: int,                 db: Session):    query = tables.Tweets(user_id=user_id,                          tweet=tweet_content)    try:        db.add(query)        db.commit()    except:        return None    return {'user_id': user_id, 'tweet': tweet_content}def get_timeline(user_id: int,                 db: Session):    tweets = db.query(tables.Tweets) \        .join(tables.UsersFollowList,              tables.UsersFollowList.user_id == user_id, isouter=True) \        .filter(or_(tables.Tweets.user_id == user_id,                    tables.Tweets.user_id == tables.UsersFollowList.follow_user_id)) \        .all()    if len(tweets) == 0:        return None    else:        return {'timeline': [{            'user_id': tweet.user_id,            'tweet': tweet.tweet        } for tweet in tweets]}
+class TweetService:
+    def __init__(self, tweet_dao: object):
+        self.dao = tweet_dao
+        
+    def tweet(self,
+              user_id: int,
+              tweet_content: str):
+        
+        if len(tweet_content) > 300:
+            return False
+        
+        return self.dao.insert_tweet(user_id=user_id,
+                                     tweet_content=tweet_content)
+        
+    def timeline(self,
+                 user_id: int):
+        return self.dao.get_timeline(user_id)
